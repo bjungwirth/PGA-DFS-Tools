@@ -663,7 +663,7 @@ class PGA_GPP_Simulator:
         # )
         # if np.abs(mean_offset) > threshold:
         #     samples[:, 0] += mean_offset
-        # # Prepare for plotting
+        # Prepare for plotting
         # sns.set_theme(style="whitegrid")
         # plt.figure(figsize=(8, 4))
         # sns.histplot(samples[:, 0], bins=100, kde=True, color='g', alpha=0.6)
@@ -676,7 +676,7 @@ class PGA_GPP_Simulator:
         # plt.savefig(plot_path)
         # plt.close()
 
-        #print(f'{k} simulation complete')
+        # print(f'{k} simulation complete')
 
         # sample_min = np.min(samples)
         # sample_max = np.max(samples)
@@ -1006,41 +1006,35 @@ class PGA_GPP_Simulator:
                 self.site, self.field_size, self.num_iterations
             ),
         )
-        with open(out_path, "w") as f:
-            f.write("Player,Win%,Top1%,Sim. Own%,Proj. Own%,Avg. Return\n")
-            unique_players = {}
-            for val in self.field_lineups.values():
-                for player in val["Lineup"]:
-                    if player not in unique_players:
-                        unique_players[player] = {
-                            "Wins": val["Wins"],
-                            "Top1Percent": val["Top1Percent"],
-                            "In": 1,
-                            "ROI": val["ROI"],
-                            "Cashes": val["Cashes"],
-                        }
-                    else:
-                        unique_players[player]["Wins"] = (
-                            unique_players[player]["Wins"] + val["Wins"]
-                        )
-                        unique_players[player]["Top1Percent"] = (
-                            unique_players[player]["Top1Percent"] + val["Top1Percent"]
-                        )
-                        unique_players[player]["In"] = unique_players[player]["In"] + 1
-                        unique_players[player]["ROI"] = (
-                            unique_players[player]["ROI"] + val["ROI"]
-                        )
-                        unique_players[player]["Cashes"] = (
-                            unique_players[player]["Cashes"] + val["Cashes"]
-                        )                        
+        # Initialize all player data
+        unique_players = {player: {"Wins": 0, "Top1Percent": 0, "In": 0, "ROI": 0, "Cashes": 0} for player in self.player_dict}
 
+        # Loop over all lineups and their outcomes once to aggregate player data
+        for val in self.field_lineups.values():
+            lineup_players = val["Lineup"]
+            for player in lineup_players:
+                unique_players[player]["In"] += 1
+                unique_players[player]["ROI"] += val["ROI"]
+                unique_players[player]["Cashes"] += val["Cashes"]
+                
+                # Only increment Wins and Top1Percent if the lineup has them
+                if val['Wins'] > 0:
+                    unique_players[player]["Wins"] += 1 / len(lineup_players)  # Distribute the win among the players in the lineup
+                if val['Top1Percent'] > 0:
+                    unique_players[player]["Top1Percent"] += 1 / len(lineup_players)  # Distribute the top 1% finish among the players in the lineup
+
+        # Write the aggregated data to the output file
+        with open(out_path, "w") as f:
+            f.write("Player,Win%,Top1%,Cash%,Sim. Own%,Proj. Own%,Avg. Return\n")
+            
             for player, data in unique_players.items():
-                field_p = round(data["In"] / self.field_size * 100, 2)
-                win_p = round(data["Wins"] / self.num_iterations * 100, 2)
-                top10_p = round(data["Top1Percent"] / self.num_iterations / 10 * 100, 2)
-                roi_p = round(data["ROI"] / data["In"] / self.num_iterations, 2)
-                cash_p = round(data["Cashes"] / self.num_iterations * 100, 2)
+                win_p = round(data["Wins"] / self.num_iterations * 100, 4)
+                top10_p = round(data["Top1Percent"] / self.num_iterations * 100, 4)
+                cash_p = round(data["Cashes"] / data["In"] / self.num_iterations * 100, 4)
+                roi_p = round(data["ROI"] / data["In"] / self.num_iterations, 4)
+                field_p = round(data["In"] / self.field_size * 100, 4)
                 proj_own = self.player_dict[player]["Ownership"]
+                
                 f.write(
                     "{},{}%,{}%,{}%,{}%,{}%,${}\n".format(
                         player.replace("#", "-"),
